@@ -1,3 +1,26 @@
+# Copyright 2020 Dzuba, Krylov
+#
+# Licensed under the MIT License
+# Permission is hereby granted, free of charge,
+# to any person obtaining a copy of this software and associated documentation
+# files (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the Software, and to permit
+# persons to whom the Software is furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+# DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+# DEALINGS IN THE SOFTWARE.
+#
+# &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+#
 # This function takes the data and creates the violinplot with the boxplot on top of it
 # If bnd is not NULL, then the data is filtered by the specified boundaries and only then is plotted
 # If bnd is NULL returns a plot.
@@ -16,7 +39,7 @@
 plot.box_violin <- function(df,
                             bnd = NULL,
                             arrange_p = TRUE,
-                            names_vars = c("R", "P", "L", "G", "F", "T"),
+                            names_vars = c("P", "R", "L", "G", "F", "T"),
                             base_p_size = 11,
                             outlier.alpha = 0.05) {
   library(ggplot2)
@@ -64,10 +87,10 @@ plot.box_violin <- function(df,
     plots = plist,
     ncol = 3,
     nrow = 2,
-    labels = letters[1:length(names_vars)],
-    label.args = list(
-      gp = gpar(cex = 1)
-    ),
+    # labels = letters[1:length(names_vars)],
+    # label.args = list(
+    #   gp = gpar(cex = 1)
+    # ),
     draw = FALSE
   )
 
@@ -123,8 +146,8 @@ scale_data <- function(df,
 # Creates a ggplot parallel coordinates plot
 # Args:
 #   df - data.frame or tibble;
-#   clustering - clustering vector (can be numeric or factor);
-#   clust_plot_scheme - how to plot different clusters;
+#   clustering - clustering vector (can be numeric or character/factor);
+#   clust_plot_scheme - how to plot different clusters
 #   names_vars - vector of string names of variables in df;
 #   alpha_transp - alpha transparency for lines (0 = fully transparent, 1 = no transparency);
 #   line_size - width of hyperlines;
@@ -137,14 +160,19 @@ scale_data <- function(df,
 
 plot.par_coord <- function(df,
                            clustering = NULL,
-                           clust_plot_scheme = c("facet_wrap", "colour", "shape", "highlight"),
-                           names_vars = c("R", "P", "L", "G", "F", "T"),
+                           clust_plot_scheme = c(
+                             "facet_wrap",
+                             "colour",
+                             "shape",
+                             "highlight"
+                           ),
+                           names_vars = c("P", "R", "L", "G", "F", "T"),
                            alpha_trasp = 1,
                            line_size = 1,
                            base_p_size = 11,
                            y_units = "Z-score",
                            scale_y_step = 0.5,
-                           colours = c("cyan", brewer.pal(8, name = "Set1")),
+                           colours = c("cyan", RColorBrewer::brewer.pal(8, name = "Set1")),
                            legend_pos = c(0.87, 0.2)) {
   library(tidyr)
   library(tibble)
@@ -172,18 +200,22 @@ plot.par_coord <- function(df,
   p <- ggplot(pivot_data, aes(x = dummy_vector, y = value)) +
     scale_x_continuous(
       name = "Variable",
-      limits = c(1, v_len), breaks = 1:v_len,
-      labels = names_vars, minor_breaks = NULL, expand = c(0.01, 0.01)
+      limits = c(1, v_len),
+      breaks = 1:v_len,
+      labels = names_vars,
+      minor_breaks = NULL,
+      expand = c(0.01, 0.01)
     ) +
     scale_y_continuous(
       name = y_units,
       limits = c(min(df[1:v_len]), max(df[1:v_len])),
-      breaks = seq(round(min(df[1:v_len])),
+      breaks = seq(
+        round(min(df[1:v_len])),
         round(max(df[1:v_len])),
         by = scale_y_step
       ),
       minor_breaks = NULL,
-      expand = c(0, 0)
+      expand = c(0.01, 0.01)
     ) +
     theme_bw(base_size = base_p_size) +
     theme(plot.margin = margin(0, 0, 0, 0, "cm"))
@@ -191,12 +223,13 @@ plot.par_coord <- function(df,
   if (!is.null(clustering)) {
     if (clust_plot_scheme == "facet_wrap") {
       p <- p +
-        geom_path(aes(y = value),
+        geom_path(
+          aes(y = value),
           alpha = alpha_trasp,
           na.rm = TRUE,
           size = line_size
         ) +
-        facet_wrap(~ as.factor(cluster)) +
+        facet_wrap(~ cluster) +
         theme(
           panel.spacing = unit(0.2, "lines"),
           strip.text = element_text(
@@ -208,18 +241,20 @@ plot.par_coord <- function(df,
       p <- p +
         geom_path(aes(
           y = value,
-          colour = as.factor(cluster)
+          colour = cluster
         ),
         alpha = alpha_trasp,
         na.rm = TRUE,
         size = line_size
         ) +
         scale_color_manual(values = colours, labels = cluster, name = "") +
-        guides(colour = guide_legend(
-          override.aes = list(alpha = 1, size = 1),
-          title = "",
-          labels = cluster
-        )) +
+        guides(
+          colour = guide_legend(
+            override.aes = list(alpha = 1, size = 1),
+            title = "",
+            labels = cluster
+          )
+        ) +
         theme(
           legend.key.size = unit(0.1, "cm"),
           plot.margin = margin(0, 0, 0, 0, "cm"),
@@ -231,7 +266,7 @@ plot.par_coord <- function(df,
       p <- p +
         geom_point(aes(
           y = value,
-          shape = as.factor(cluster)
+          shape = cluster
         ),
         size = 1.5,
         alpha = alpha_trasp,
@@ -245,11 +280,13 @@ plot.par_coord <- function(df,
         size = line_size
         ) +
         scale_shape_manual(values = c(16, 17, 15, 3, 7, 8, 10, 14, 11)) +
-        guides(shape = guide_legend(
-          override.aes = list(alpha = 1, size = 1.5),
-          title = "",
-          labels = cluster
-        )) +
+        guides(
+          shape = guide_legend(
+            override.aes = list(alpha = 1, size = 1.5),
+            title = "",
+            labels = cluster
+          )
+        ) +
         theme(
           legend.key.size = unit(0.1, "cm"),
           plot.margin = margin(0, 0, 0, 0, "cm"),
@@ -317,7 +354,7 @@ plot.par_coord <- function(df,
 # Args:
 #   df - data.frame or tibble;
 #   k - number of clusters, specify vector of k values to split data into different number of clusters in one function call;
-#   init_clus_centers - init cluster centers for k-means only;
+#   init_clus_centers - init cluster centers for k-means or medoids for pam;
 #   cluster_method - clustering algorithm;
 #   hclust_method - hierarchical clustering method of linkage;
 #   dist_mat - precomputed distance matrix;
@@ -327,7 +364,7 @@ plot.par_coord <- function(df,
 #   verbose - logical, print clustering progress or not.
 
 
-cluster.data <- function(df,
+cluster_data <- function(df,
                          k,
                          init_clus_centers = NULL,
                          cluster_method = c(
@@ -352,29 +389,20 @@ cluster.data <- function(df,
                          verbose = TRUE) {
   library(factoextra)
   library(cluster)
-  library(crayon)
 
   # Input check-----------
 
   if (!all(apply(df, 2, is.numeric))) {
     stop("All columns in df should be numeric type")
   }
-  if (!(cluster_method %in% c(
-    "kmeans",
-    "hclust",
-    "pam"
-  ))) {
-    stop("Unsupported clustering algorithm")
-  }
-  if (length(cluster_method) > 1) cluster_method <- cluster_method[1]
-  if (length(hclust_method) > 1) hclust_method <- hclust_method[1]
+
+  cluster_method <- match.arg(cluster_method, cluster_method)
+  hclust_method <- match.arg(hclust_method, hclust_method)
 
   if (is.null(dist_mat)) {
-    dist_mat <- dist(df, method = "euclidean")
+    dist_mat <- parallelDist::parallelDist(df, method = "euclidean")
   }
-  if (is.null(hclust_tree) & cluster_method %in% c(
-    "hclust"
-  )) {
+  if (is.null(hclust_tree) & cluster_method == "hclust") {
     hclust_tree <- fastcluster::hclust(dist_mat, method = hclust_method)
   }
 
@@ -393,13 +421,19 @@ cluster.data <- function(df,
   for (kk in k) {
     if (verbose) print(paste("clustering", kk, "clusters"))
 
-    # Classic kmeans, Hartigan-Wong algorithm-----------
+    # Classic kmeans, Hartigan-Wong algorithm if init centers not supplied------
 
     if (cluster_method == "kmeans") {
       if (is.null(init_clus_centers)) {
-        clustering <- kmeans(df, centers = kk, iter.max = max_iter)
+        clustering <- kmeans(df,
+          centers = kk,
+          iter.max = max_iter
+        )
       } else if (length(init_clus_centers) == length(k)) {
-        clustering <- kmeans(df, centers = init_clus_centers[[kk - 1]], iter.max = max_iter)
+        clustering <- kmeans(df,
+          centers = init_clus_centers[[kk - 1]],
+          iter.max = max_iter
+        )
       } else {
         stop("kmeans_centers length", length(init_clus_centers), "!= k length", length(k))
       }
@@ -541,9 +575,12 @@ plot.silhouette <- function(df, names_just = 0.5, name_angle = 45, base_p_size =
       df_cl_mean,
       linetype = "dashed", color = "black"
     ) +
-    geom_text(aes(x = x, y = y, label = cluster),
+    geom_text(aes(x = x, 
+                  y = y, 
+                  label = cluster),
       middle_x_values,
-      angle = name_angle
+      angle = name_angle,
+      size = base_p_size / ggplot2:::.pt
     ) +
     theme_classic(base_size = base_p_size) +
     scale_y_continuous(
