@@ -25,13 +25,13 @@
 # If bnd is not NULL, then the data is filtered by the specified boundaries and only then is plotted
 # If bnd is NULL returns a plot.
 # Args:
-#   df - data.frame or tibble;
+#   df - data.frame;
 #   bnd - boundaries of variables in df. Specified as follows:
 #     lower boundary of variable 1, upper boundary of variable 1,
 #     lower boundary of variable 2, upper boundary of variable 2,
 #     ...,
 #     lower boundary of variable n, upper boundary of variable n.
-#   names_vars - vector of string names of variables in df;
+#   var_index - vector of string names of variables in df;
 #   base_p_size - base font size in ggplot theme;
 #   outlier.alpha - alpha transparency for outliers points (0 = fully transparent, 1 = no transparency).
 
@@ -39,38 +39,37 @@
 plot.box_violin <- function(df,
                             bnd = NULL,
                             arrange_p = TRUE,
-                            names_vars = c("P", "R", "L", "G", "F", "T"),
+                            var_index = c("P", "R", "L", "G", "F", "T"),
                             base_p_size = 11,
                             outlier.alpha = 0.05) {
-  library(ggplot2)
-  library(egg)
-  library(tibble)
-  library(grid)
-  library(scales)
+  library("ggplot2")
+  library("egg")
+  library("grid")
+  library("scales")
 
-  if (!(is.vector(bnd) & length(bnd) == length(names_vars) * 2 | is.null(bnd))) {
-    stop(paste("bnd should be a vector of length", length(names_vars) * 2, "or NULL"))
+  if (!(is.vector(bnd) & length(bnd) == length(var_index) * 2 | is.null(bnd))) {
+    stop(paste("bnd should be a vector of length", length(var_index) * 2, "or NULL"))
   }
 
   plist <- list()
   if (!is.null(bnd)) {
-    condition <- TRUE
-    for (i in 1:length(names_vars)) {
-      condition <- df[names_vars[i]] >= bnd[i + i - 1] &
-        df[names_vars[i]] <= bnd[i + i] & condition
+    dummy_condition <- TRUE
+    for (i in 1:length(var_index)) {
+      dummy_condition <- df[var_index[i]] >= bnd[i + i - 1] &
+        df[var_index[i]] <= bnd[i + i] & dummy_condition
     }
-    out <- df[which(!condition), ]
-    df <- df[which(condition), ]
+    out <- df[which(!dummy_condition), ]
+    df <- df[which(dummy_condition), ]
   } else {
     out <- NULL
   }
 
-  for (i in 1:length(names_vars)) {
-    plist[[i]] <- ggplot(df, aes_string(y = names_vars[i], x = rep(1, nrow(df)))) +
+  for (i in 1:length(var_index)) {
+    plist[[i]] <- ggplot(df, aes_string(y = var_index[i], x = rep(1, nrow(df)))) +
       geom_violin(trim = FALSE, fill = "gray", colour = "grey") +
       geom_boxplot(width = 0.1, outlier.size = 0.5, outlier.alpha = outlier.alpha) +
       theme_bw(base_size = base_p_size) +
-      xlab(names_vars[i]) +
+      xlab(var_index[i]) +
       theme(
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
@@ -87,7 +86,7 @@ plot.box_violin <- function(df,
     plots = plist,
     ncol = 3,
     nrow = 2,
-    # labels = letters[1:length(names_vars)],
+    # labels = letters[1:length(var_index)],
     # label.args = list(
     #   gp = gpar(cex = 1)
     # ),
@@ -109,9 +108,7 @@ plot.box_violin <- function(df,
 # Returns an exact copy of the table with normalized / standardized variables
 
 
-scale_data <- function(df,
-                       method = c("z-score", "min-max", "min-optimum-max"),
-                       optimum_values = NULL) {
+scale_data <- function(df, method = c("z-score", "min-max", "min-optimum-max")) {
   method <- match.arg(method, method)
 
   if (method == "z-score") {
@@ -124,21 +121,7 @@ scale_data <- function(df,
       function(x) (x - min(x, na.rm = T)) / (max(x, na.rm = T) - min(x, na.rm = T))
     )
   }
-  else if (method == "min-optimum-max") {
-    if (inherits(optimum_values, "numeric")) opt_x <- t(optimum_values)
-    df[, 1:ncol(df)] <- mapply(
-      df,
-      opt_x,
-      FUN = function(x, x_opt) {
-        1 - ((x - x_opt) /
-          max(
-            x_opt - min(x, na.rm = T),
-            max(x, na.rm = T) - x_opt
-          )
-        )
-      }
-    )
-  }
+  
   return(df)
 }
 
@@ -147,9 +130,9 @@ scale_data <- function(df,
 # Args:
 #   df - data.frame or tibble;
 #   clustering - clustering vector (can be numeric or character/factor);
-#   clust_plot_scheme - how to plot different clusters
-#   names_vars - vector of string names of variables in df;
-#   alpha_transp - alpha transparency for lines (0 = fully transparent, 1 = no transparency);
+#   clust_plot_scheme - specification on how to plot different clusters
+#   var_index - vector of string names of variables in df;
+#   alpha_transp - alpha transparency for hyperlines (0 = fully transparent, 1 = no transparency);
 #   line_size - width of hyperlines;
 #   base_p_size - base font size in ggplot theme;
 #   y_units - units of measurement of y axis (used for y axis name);
@@ -166,7 +149,7 @@ plot.par_coord <- function(df,
                              "shape",
                              "highlight"
                            ),
-                           names_vars = c("P", "R", "L", "G", "F", "T"),
+                           var_index = c("P", "R", "L", "G", "F", "T"),
                            alpha_trasp = 1,
                            line_size = 1,
                            base_p_size = 11,
@@ -174,35 +157,35 @@ plot.par_coord <- function(df,
                            scale_y_step = 0.5,
                            colours = c("cyan", RColorBrewer::brewer.pal(8, name = "Set1")),
                            legend_pos = c(0.87, 0.2)) {
-  library(tidyr)
-  library(tibble)
-  library(ggplot2)
-  library(RColorBrewer)
+  library("tidyr")
+  library("tibble")
+  library("ggplot2")
+  library("RColorBrewer")
 
   clust_plot_scheme <- match.arg(clust_plot_scheme, clust_plot_scheme)
 
-  df$dummy <- NA
+  df[["dummy"]] <- NA
   if (is.null(clustering)) {
-    vars_cols <- which(names(df) %in% c(names_vars, "dummy"))
+    vars_cols <- which(names(df) %in% c(var_index, "dummy"))
   } else {
-    df$cluster <- clustering
-    vars_cols <- which(names(df) %in% c(names_vars, "dummy", "cluster"))
+    df[["cluster"]] <- clustering
+    vars_cols <- which(names(df) %in% c(var_index, "dummy", "cluster"))
   }
   df <- df[vars_cols]
-  dummy_vector <- rep(c(1:length(names_vars), NA), nrow(df))
+  dummy_vector <- rep(c(1:length(var_index), NA), nrow(df))
   pivot_data <- pivot_longer(data = df, cols = which(names(df) %in% c(
-    names_vars,
+    var_index,
     "dummy"
   ))) %>%
     cbind(dummy_vector)
-  v_len <- length(names_vars)
+  v_len <- length(var_index)
 
   p <- ggplot(pivot_data, aes(x = dummy_vector, y = value)) +
     scale_x_continuous(
       name = "Variable",
       limits = c(1, v_len),
       breaks = 1:v_len,
-      labels = names_vars,
+      labels = var_index,
       minor_breaks = NULL,
       expand = c(0.01, 0.01)
     ) +
@@ -229,7 +212,7 @@ plot.par_coord <- function(df,
           na.rm = TRUE,
           size = line_size
         ) +
-        facet_wrap(~ cluster) +
+        facet_wrap(~cluster) +
         theme(
           panel.spacing = unit(0.2, "lines"),
           strip.text = element_text(
@@ -295,7 +278,7 @@ plot.par_coord <- function(df,
           legend.background = element_rect(fill = "transparent")
         )
     } else if (clust_plot_scheme == "highlight") {
-      highlight <- pivot_data[grep("Cluster", pivot_data$cluster), ]
+      highlight <- pivot_data[grep("Cluster", pivot_data[["cluster"]]), ]
 
       p <- p +
         geom_path(aes(
@@ -320,13 +303,13 @@ plot.par_coord <- function(df,
         scale_color_identity(
           name = "Highlighted cluster",
           breaks = c("gray", "black"),
-          labels = c("Main", highlight$cluster[1]),
+          labels = c("Main", highlight[["cluster"]][1]),
           guide = "legend"
         ) +
         scale_linetype_identity(
           name = "Highlighted cluster",
           breaks = c("solid", "longdash"),
-          labels = c("Main", highlight$cluster[1]),
+          labels = c("Main", highlight[["cluster"]][1]),
           guide = "legend"
         ) +
         theme(
@@ -350,9 +333,73 @@ plot.par_coord <- function(df,
 }
 
 
+# Calculates silhoutte scores for kmeans with a lot of random init centers
+# and chooses the best init centers for each k by maximizing average silhouette score
+# Args:
+#   df - data.frame;
+#   var_index - vector of string names of variables in df;
+#   k - number of clusters, specify vector of k values to split data into different number of clusters in one function call;
+#   iterations - number of random centers which will be used for kmeans clusterization for each k;
+#   save_best_centers_to_RDS - bool for saving or not saving function result to RDS file;
+#   path_to_RDS - string file path, where to save RDS;
+#   vebose - bool for verbose.
+
+
+calculate_kmeans_centers_silh_scores <- function(df,
+                                                 var_index,
+                                                 k,
+                                                 iterations,
+                                                 save_best_centers_to_RDS = TRUE,
+                                                 path_to_RDS = NULL,
+                                                 verbose = TRUE) {
+  library("parallelDist")
+  library("cluster")
+
+  # k-means best clusters centers detection
+  best_centers <- vector(mode = "list", length = length(k)) %>%
+    `names<-`(paste0("k", k))
+  other_centers <- vector(mode = "list", length = length(k)) %>%
+    `names<-`(paste0("k", k))
+  centers_avg_silhouette_scores <- vector(mode = "list", length = length(k)) %>%
+    `names<-`(paste0("k", k))
+  dist_mat <- parallelDist::parallelDist(as.matrix(df[, var_index]))
+
+  for (kk in k) {
+    centers <- vector(mode = "list", length = iterations)
+    avg_silhouette_score <- numeric(iterations)
+
+    if (verbose) {
+      cat("Currently finding best centers for k-means with", kk, "init centers...\n")
+    }
+
+    for (i in 1:iterations) {
+      centers[[i]] <- df[sample(1:nrow(df), kk), ]
+      kmeans_res <- kmeans(df[, var_index], centers[[i]][, var_index])
+      avg_silhouette_score[i] <- mean(silhouette(kmeans_res[["cluster"]], dist_mat)[, 3])
+    }
+
+    best_centers[[paste0("k", kk)]] <- centers[[which.max(avg_silhouette_score)]]
+    other_centers[[paste0("k", kk)]] <- centers
+    centers_avg_silhouette_scores[[paste0("k", kk)]] <- avg_silhouette_score
+  }
+
+  output <- list(
+    "best_centers" = best_centers,
+    "other_centers" = other_centers,
+    "avg_silhouette_scores" = centers_avg_silhouette_scores
+  )
+
+  if (save_best_centers_to_RDS) {
+    saveRDS(output, path_to_RDS)
+  }
+
+  return(output)
+}
+
+
 # performs data partitioning into a certain number of clusters and returns basic validation metrics
 # Args:
-#   df - data.frame or tibble;
+#   df - data.frame;
 #   k - number of clusters, specify vector of k values to split data into different number of clusters in one function call;
 #   init_clus_centers - init cluster centers for k-means or medoids for pam;
 #   cluster_method - clustering algorithm;
@@ -360,8 +407,9 @@ plot.par_coord <- function(df,
 #   dist_mat - precomputed distance matrix;
 #   hclust_tree - precomputed hierarchical clustering tree;
 #   max_iter - maximum number of iterations for k-means to converge;
-#   internal_metrics - logical, calculate silhouette and WSS or not;
-#   verbose - logical, print clustering progress or not.
+#   pamonce - pamonce arg in pam;
+#   internal_metrics - bool, calculate silhouette and WSS or not;
+#   verbose - bool, print clustering progress or not.
 
 
 cluster_data <- function(df,
@@ -385,10 +433,12 @@ cluster_data <- function(df,
                          dist_mat = NULL,
                          hclust_tree = NULL,
                          max_iter = 20,
+                         pam_pamonce = 3,
                          internal_metrics = FALSE,
                          verbose = TRUE) {
-  library(factoextra)
-  library(cluster)
+  
+  library("factoextra")
+  library("cluster")
 
   # Input check-----------
 
@@ -410,62 +460,36 @@ cluster_data <- function(df,
     "cluster_method" = cluster_method,
     "hclust_method" = hclust_method,
     "main_metric" = "euclidean",
-    "clustering" = list()
+    "clustering" = list(),
+    "WSS" = list(),
+    "avg.silhouette.width" = list(),
+    "silhoutte" = list()
   )
 
-  wss_vec <- sil_vec <- numeric(k[length(k)])
-  sil_list <- list()
-  names(wss_vec) <- names(sil_vec) <- paste("k =", 1:k[length(k)])
   int_metr <- internal_metrics
+
+  euclidean_wss <- function(x, clustering) {
+    spl <- split(x, clustering)
+
+    wss <- sum(sapply(spl, function(d) sum(scale(d, scale = FALSE)^2)))
+    return(wss)
+  }
 
   for (kk in k) {
     if (verbose) print(paste("clustering", kk, "clusters"))
 
-    # Classic kmeans, Hartigan-Wong algorithm if init centers not supplied------
+    # Classic kmeans, Hartigan-Wong algorithm
 
     if (cluster_method == "kmeans") {
       if (is.null(init_clus_centers)) {
-        clustering <- kmeans(df,
-          centers = kk,
-          iter.max = max_iter
-        )
+        init_kmeans_centers <- kk
       } else if (length(init_clus_centers) == length(k)) {
-        clustering <- kmeans(df,
-          centers = init_clus_centers[[kk - 1]],
-          iter.max = max_iter
-        )
+        init_kmeans_centers <- init_clus_centers[[paste0("k", kk)]]
+      } else if ((is.data.frame(init_clus_centers) | 
+                  is.matrix(init_clus_centers)) && length(k) == 1) {
+        init_kmeans_centers <- init_clus_centers
       } else {
-        stop("kmeans_centers length", length(init_clus_centers), "!= k length", length(k))
-      }
-
-      if (int_metr) {
-        cluster_wss <- clustering$tot.withinss
-        cluster_sil <- silhouette(clustering$cluster, dist_mat)
-      } else {
-        cluster_wss <- NA
-        cluster_sil <- NA
-      }
-
-      clustering <- clustering$cluster
-    }
-
-    # Hierarchical clustering-------------
-
-    else if (cluster_method == "hclust") {
-      clustering <- cutree(tree = hclust_tree, kk)
-
-      euclidean_wss <- function(x, clustering) {
-        spl <- split(x, clustering)
-
-        wss <- sum(sapply(spl, function(d) sum(scale(d, scale = FALSE)^2)))
-        return(wss)
-      }
-      if (int_metr) {
-        cluster_wss <- euclidean_wss(df, clustering)
-        cluster_sil <- silhouette(clustering, dist_mat)
-      } else {
-        cluster_wss <- NA
-        cluster_sil <- NA
+        stop("kmeans_centers length ", length(init_clus_centers), " != k length ", length(k))
       }
     }
 
@@ -473,52 +497,49 @@ cluster_data <- function(df,
 
     else if (cluster_method == "pam") {
       if (is.null(init_clus_centers)) {
-        clustering <- clustering <- pam(
-          x = dist_mat,
-          k = kk,
-          diss = TRUE,
-          pamonce = 3
-        )
+        init_pam_medoids <- NULL
       } else if (length(init_clus_centers) == length(k)) {
-        cluster_centers_index <- which(sapply(init_clus_centers, nrow) == kk)
-        clustering <- clustering <- pam(
-          x = dist_mat,
-          k = kk,
-          diss = TRUE,
-          pamonce = 3,
-          medoids = which(row.names(df) %in%
-            row.names(init_clus_centers[[cluster_centers_index]]))
-        )
+        init_pam_medoids <- which(row.names(df) %in%
+          row.names(init_clus_centers[[paste0("k", kk)]]))
+      } else if ((is.data.frame(init_clus_centers) | 
+                  is.matrix(init_clus_centers)) && length(k) == 1) {
+        init_pam_medoids <- init_clus_centers
       } else {
         stop("pam_medoids length", length(init_clus_centers), "!= k length", length(k))
       }
+    }
+    
+    clustering <- switch(cluster_method,
+                         
+      "kmeans" = kmeans(df,
+        centers = init_kmeans_centers,
+        iter.max = max_iter
+      )[["cluster"]],
+      
+      "hclust" = cutree(tree = hclust_tree, kk),
+      
+      "pam" = pam(
+        x = dist_mat,
+        k = kk,
+        diss = TRUE,
+        pamonce = pam_pamonce,
+        medoids = init_pam_medoids
+      )[["clustering"]]
+    )
 
-      euclidean_wss <- function(x, clustering) {
-        spl <- split(x, clustering)
-
-        wss <- sum(sapply(spl, function(d) sum(scale(d, scale = FALSE)^2)))
-        return(wss)
-      }
-      if (int_metr) {
-        cluster_wss <- euclidean_wss(df, clustering$cluster)
-        cluster_sil <- silhouette(clustering$cluster, dist_mat)
-      } else {
-        cluster_wss <- NA
-        cluster_sil <- NA
-      }
-
-      clustering <- clustering$cluster
+    if (int_metr) {
+      cluster_wss <- euclidean_wss(df, clustering)
+      cluster_sil <- silhouette(clustering, dist_mat)
+    } else {
+      cluster_wss <- NA
+      cluster_sil <- NA
     }
 
-    cluster_res$clustering[[paste("k =", kk)]] <- clustering
-    wss_vec[kk] <- cluster_wss
-    sil_vec[kk] <- ifelse(int_metr, mean(cluster_sil[, 3]), NA)
-    sil_list[[paste("clustering k =", kk)]] <- cluster_sil
+    cluster_res[["clustering"]][[paste0("k", kk)]] <- clustering
+    cluster_res[["WSS"]][[paste0("k", kk)]] <- cluster_wss
+    cluster_res[["avg.silhouette.width"]][[paste0("k", kk)]] <- ifelse(int_metr, mean(cluster_sil[, 3]), NA)
+    cluster_res[["silhouette"]][[paste0("k", kk)]] <- cluster_sil
   }
-
-  cluster_res$WSS <- wss_vec
-  cluster_res$Avg.silhouette.width <- sil_vec
-  cluster_res$Silhouette <- sil_list
 
   return(cluster_res)
 }
@@ -531,24 +552,23 @@ cluster_data <- function(df,
 
 
 plot.silhouette <- function(df, names_just = 0.5, name_angle = 45, base_p_size = 11) {
-  library(ggplot2)
-  library(dplyr)
-  library(scales)
+  library("ggplot2")
+  library("dplyr")
+  library("scales")
 
   # order by cluster and by sil_width
-  df <- df[order(df$cluster, -df$sil_width), ]
+  df <- df[order(df[, "cluster"], -df[, "sil_width"]), ]
   if (!is.null(rownames(df))) {
-    df$name <- factor(rownames(df), levels = rownames(df))
+    df[, "name"] <- factor(rownames(df), levels = rownames(df))
   } else {
-    df$name <- as.factor(1:nrow(df))
+    df[, "name"] <- as.factor(seq_len(nrow(df)))
   }
-  df$name <- df$name
-  df$cluster <- as.factor(df$cluster)
-  df_cl_mean <- aggregate(df$sil_width, by = list("cluster" = df$cluster), mean) %>%
+  df[, "cluster"] <- as.factor(df[, "cluster"])
+  df_cl_mean <- aggregate(df[, "sil_width"], by = list("cluster" = df[, "cluster"]), mean) %>%
     rename(ystart = x) %>%
     mutate(yend = ystart)
 
-  df_clusters <- split(df$name, df$cluster)
+  df_clusters <- split(df[, "name"], df[, "cluster"])
 
   df_cl_mean <- df_clusters %>%
     lapply(function(x) x[c(1, length(x))]) %>%
@@ -560,7 +580,7 @@ plot.silhouette <- function(df, names_just = 0.5, name_angle = 45, base_p_size =
     lapply(function(x) x[length(x) %/% 2]) %>%
     do.call(rbind.data.frame, args = .) %>%
     `names<-`("x") %>%
-    mutate("cluster" = levels(df$cluster), "y" = rep(names_just, nrow(.)))
+    mutate("cluster" = levels(df[, "cluster"]), "y" = rep(names_just, nrow(.)))
 
   p <- ggplot(df, aes(x = name, y = sil_width)) +
     geom_bar(
@@ -575,18 +595,20 @@ plot.silhouette <- function(df, names_just = 0.5, name_angle = 45, base_p_size =
       df_cl_mean,
       linetype = "dashed", color = "black"
     ) +
-    geom_text(aes(x = x, 
-                  y = y, 
-                  label = cluster),
-      middle_x_values,
-      angle = name_angle,
-      size = base_p_size / ggplot2:::.pt
+    geom_text(aes(
+      x = x,
+      y = y,
+      label = cluster
+    ),
+    middle_x_values,
+    angle = name_angle,
+    size = base_p_size / ggplot2:::.pt
     ) +
     theme_classic(base_size = base_p_size) +
     scale_y_continuous(
       limits = c(
-        min(df$sil_width),
-        max(df$sil_width)
+        min(df[, "sil_width"]),
+        max(df[, "sil_width"])
       ),
       breaks = pretty_breaks(10)
     ) +

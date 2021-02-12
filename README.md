@@ -8,7 +8,7 @@ Download the current repository via site or git
 git clone https://github.com/DenchPokepon/2030-Corporations-Clusterization.git
 ```
 
-Run "2030-Corporations-Clusterization.Rproj" via Rstudio and open "Main.R" script
+Run "2030-Corporations-Clusterization.Rproj" via Rstudio and open "clustering.R" script
 
 ## License
 [MIT](https://choosealicense.com/licenses/mit/)
